@@ -8,7 +8,9 @@ urlpatterns = [
     path('login/', views.login, name='login'),
     path('register/', views.register, name='register'),
    
-    path('dashboard/', views.dashboard_view, name='dashboard'),
+    path('dashboard/', views.enhanced_dashboard_view, name='dashboard'),
+    # ou si vous voulez garder l'ancienne et ajouter une nouvelle
+    path('dashboard/enhanced/', views.enhanced_dashboard_view, name='enhanced_dashboard'),
     path('predict/', views.predict, name='predict'),
     path('profile/', views.profile, name='profile'),
  
@@ -36,8 +38,16 @@ urlpatterns = [
    
     path('change-password/', views.change_password, name='change_password'),
      path('messages/', views.user_messages, name='user_messages'),
-  path('chatbot-response/', views.chatbot_response, name='chatbot_response'),
+    path('chatbot-response/', views.chatbot_response, name='chatbot_response'),
     path('chat/', views.chatbot_page, name='chat'),
+        # URLs pour la gestion des prédictions par l'admin
+    path('admin/predictions/', views.admin_predictions, name='admin_predictions'),
+    path('admin/predictions/<int:prediction_id>/delete/', views.admin_prediction_delete, name='admin_prediction_delete'),
+    path('admin/predictions/delete-multiple/', views.admin_prediction_delete_multiple, name='admin_prediction_delete_multiple'),
+    path('admin/predictions/stats/', views.admin_predictions_stats, name='admin_predictions_stats'),
+    
+    # API pour récupérer les détails d'une prédiction
+    path('admin/api/prediction/<int:prediction_id>/', views.admin_api_prediction, name='admin_api_prediction'),
 
 
 ]

@@ -4,7 +4,7 @@
     {% load static %}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion des Messages - MARKETMIND</title>
+    <title>Gestion des Prédictions - MARKETMIND</title>
     
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -16,7 +16,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
-      :root {
+        :root {
             --primary: #7AAEB5;
             --primary-dark: #5A8F96;
             --primary-light: #9ECBD1;
@@ -38,6 +38,7 @@
             --shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
             --border-color: #e5e7eb;
         }
+
         :root {
             --primary-color: #7aaeb5;
             --secondary-color: #9ecbd1;
@@ -71,7 +72,8 @@
             min-height: 100vh;
             display: flex;
         }
- /* Sidebar */
+
+        /* Sidebar */
         .sidebar {
             position: fixed;
             top: 0;
@@ -85,7 +87,7 @@
             overflow-y: auto;
         }
 
-          .sidebar-header {
+        .sidebar-header {
             padding: 1.5rem;
             display: flex;
             align-items: center;
@@ -96,6 +98,7 @@
         .sidebar-header img {
             height: 60px;
         }
+
         .sidebar-header h2 {
             color: white;
             font-size: 1.5rem;
@@ -393,7 +396,7 @@
             box-shadow: 0 0 0 0.25rem rgba(122, 174, 181, 0.25);
         }
 
-         /* Responsive */
+        /* Responsive */
         @media (max-width: 768px) {
             .sidebar {
                 transform: translateX(-100%);
@@ -442,22 +445,13 @@
                 padding: 1rem;
             }
 
-           
-
             .user-info {
                 margin-top: 1rem;
             }
         }
 
-        /* Styles spécifiques à la page des messages */
-        .message-preview {
-            max-width: 300px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .status {
+        /* Styles spécifiques à la page des prédictions */
+        .roi-badge {
             display: inline-block;
             padding: 0.35rem 0.75rem;
             border-radius: 2rem;
@@ -465,14 +459,24 @@
             font-weight: 600;
         }
         
-        .status.new {
-            background-color: rgba(239, 68, 68, 0.1);
-            color: var(--danger-color);
-        }
-        
-        .status.responded {
+        .roi-excellent {
             background-color: rgba(16, 185, 129, 0.1);
             color: var(--success-color);
+        }
+        
+        .roi-bon {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: var(--info-color);
+        }
+        
+        .roi-moyen {
+            background-color: rgba(245, 158, 11, 0.1);
+            color: var(--warning-color);
+        }
+        
+        .roi-faible {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: var(--danger-color);
         }
         
         .modal-header {
@@ -503,7 +507,8 @@
         .card {
             animation: fadeIn 0.5s ease forwards;
         }
-.header {
+
+        .header {
             height: var(--header-height);
             display: flex;
             align-items: center;
@@ -534,7 +539,6 @@
             object-fit: cover;
             border: 2px solid var(--primary-light);
         }
-
     </style>
 </head>
 <body>
@@ -552,15 +556,16 @@
                 <i class="fas fa-users"></i>
                 <span>Utilisateurs</span>
             </a>
-            <a href="{% url 'admin_messages' %}" class="menu-item active">
+            <a href="{% url 'admin_messages' %}" class="menu-item">
                 <i class="fas fa-envelope"></i>
                 <span>Messages</span>
                 <span class="badge-counter">{{ new_messages_count }}</span>
             </a>
-             <a href="{% url 'admin_predictions' %}" class="menu-item">
+            <a href="{% url 'admin_predictions' %}" class="menu-item active">
                 <i class="fas fa-chart-line"></i>
                 <span>Prédictions</span>
             </a>
+           
             <a href="{% url 'admin_settings' %}" class="menu-item">
                 <i class="fas fa-cog"></i>
                 <span>Paramètres</span>
@@ -581,7 +586,7 @@
         <!-- Header -->
         <div class="header">
             <div class="d-flex align-items-center">
-                <h1>Gestion des Messages</h1>
+                <h1>Gestion des Prédictions</h1>
             </div>
             <div class="user-info">
                 <img src="{% static 'images/admin.jpg' %}" alt="Admin">
@@ -607,6 +612,7 @@
                 </div>
             {% endfor %}
         {% endif %}
+
         <!-- Filtres -->
         <div class="card">
             <div class="card-header">
@@ -616,14 +622,29 @@
                 </button>
             </div>
             <div class="card-body">
-                <form method="get" action="{% url 'admin_messages' %}">
+                <form method="get" action="{% url 'admin_predictions' %}">
                     <div class="filters">
                         <div class="filter-item">
-                            <label for="status" class="form-label">Statut</label>
-                            <select class="form-select" id="status" name="status">
+                            <label for="campaign_type" class="form-label">Type de campagne</label>
+                            <select class="form-select" id="campaign_type" name="campaign_type">
                                 <option value="">Tous</option>
-                                <option value="new" {% if request.GET.status == 'new' %}selected{% endif %}>Nouveaux</option>
-                                <option value="responded" {% if request.GET.status == 'responded' %}selected{% endif %}>Répondus</option>
+                                <option value="Email" {% if request.GET.campaign_type == 'Email' %}selected{% endif %}>Email Marketing</option>
+                                <option value="Influencer" {% if request.GET.campaign_type == 'Influencer' %}selected{% endif %}>Influencer</option>
+                                <option value="Display" {% if request.GET.campaign_type == 'Display' %}selected{% endif %}>Publicité en ligne</option>
+                                <option value="Social Media" {% if request.GET.campaign_type == 'Social Media' %}selected{% endif %}>Social Media</option>
+                                <option value="Search" {% if request.GET.campaign_type == 'Search' %}selected{% endif %}>Search</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label for="channel_used" class="form-label">Canal utilisé</label>
+                            <select class="form-select" id="channel_used" name="channel_used">
+                                <option value="">Tous</option>
+                                <option value="Facebook" {% if request.GET.channel_used == 'Facebook' %}selected{% endif %}>Facebook</option>
+                                <option value="Google Ads" {% if request.GET.channel_used == 'Google Ads' %}selected{% endif %}>Google</option>
+                                <option value="Instagram" {% if request.GET.channel_used == 'Instagram' %}selected{% endif %}>Instagram</option>
+                                <option value="Website" {% if request.GET.channel_used == 'Website' %}selected{% endif %}>Website</option>
+                                <option value="YouTube" {% if request.GET.channel_used == 'YouTube' %}selected{% endif %}>YouTube</option>
+                                <option value="Email" {% if request.GET.channel_used == 'Email' %}selected{% endif %}>Email</option>
                             </select>
                         </div>
                         <div class="filter-item">
@@ -636,7 +657,7 @@
                         </div>
                         <div class="filter-item">
                             <label for="search" class="form-label">Recherche</label>
-                            <input type="text" class="form-control" id="search" name="search" placeholder="Nom, email, sujet..." value="{{ request.GET.search }}">
+                            <input type="text" class="form-control" id="search" name="search" placeholder="Nom d'utilisateur..." value="{{ request.GET.search }}">
                         </div>
                     </div>
                     <div class="d-flex justify-content-end mt-3">
@@ -648,13 +669,13 @@
             </div>
         </div>
 
-        <!-- Liste des messages -->
+        <!-- Liste des prédictions -->
         <div class="card">
             <div class="card-header">
-                <h2>Messages ({{ messages_list.count }})</h2>
+                <h2>Prédictions ({{ predictions_list.paginator.count }})</h2>
                 <div>
-                    <button class="btn btn-danger" id="deleteSelectedMessages" disabled>
-                        <i class="fas fa-trash"></i> Supprimer sélectionnés
+                    <button class="btn btn-danger" id="deleteSelectedPredictions" disabled>
+                        <i class="fas fa-trash"></i> Supprimer sélectionnées
                     </button>
                     <a href="{% url 'admin_dashboard' %}" class="btn btn-secondary">
                         <i class="fas fa-arrow-left"></i> Retour au tableau de bord
@@ -663,48 +684,41 @@
             </div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table" id="messagesTable">
+                    <table class="table" id="predictionsTable">
                         <thead>
                             <tr>
                                 <th>
-                                    <input type="checkbox" id="selectAllMessages" class="form-check-input">
+                                    <input type="checkbox" id="selectAllPredictions" class="form-check-input">
                                 </th>
-                                <th>Expéditeur</th>
-                                <th>Email</th>
-                                <th>Sujet</th>
+                                <th>Utilisateur</th>
+                                <th>Type de campagne</th>
+                                <th>Canal</th>
+                                <th>ROI prédit</th>
                                 <th>Date</th>
-                                <th>Statut</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for message in messages_list %}
+                            {% for prediction in predictions_list %}
                             <tr>
                                 <td>
-                                    <input type="checkbox" class="message-checkbox form-check-input" data-id="{{ message.id }}">
+                                    <input type="checkbox" class="prediction-checkbox form-check-input" data-id="{{ prediction.id }}">
                                 </td>
-                                <td>{{ message.name }}</td>
-                                <td>{{ message.email }}</td>
+                                <td>{{ prediction.user.username }}</td>
+                                <td>{{ prediction.get_campaign_type_display }}</td>
+                                <td>{{ prediction.get_channel_used_display }}</td>
                                 <td>
-                                    <div class="message-preview">{{ message.subject|default:"(Sans sujet)" }}</div>
+                                    <span class="roi-badge roi-{{ prediction.get_roi_category|lower }}">
+                                        {{ prediction.predicted_roi }}
+                                    </span>
                                 </td>
-                                <td>{{ message.created_at|date:"d/m/Y" }}</td>
-                                <td>
-                                    {% if message.status == 'new' %}
-                                        <span class="status new">Nouveau</span>
-                                    {% else %}
-                                        <span class="status responded">Répondu</span>
-                                    {% endif %}
-                                </td>
+                                <td>{{ prediction.created_at|date:"d/m/Y H:i" }}</td>
                                 <td>
                                     <div class="d-flex gap-2">
-                                        <button class="btn btn-sm btn-primary view-message" data-id="{{ message.id }}">
+                                        <button class="btn btn-sm btn-primary view-prediction" data-id="{{ prediction.id }}">
                                             <i class="fas fa-eye"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-success respond-message" data-id="{{ message.id }}">
-                                            <i class="fas fa-reply"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-danger delete-message" data-id="{{ message.id }}">
+                                        <button class="btn btn-sm btn-danger delete-prediction" data-id="{{ prediction.id }}">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </div>
@@ -713,8 +727,8 @@
                             {% empty %}
                             <tr>
                                 <td colspan="7" class="text-center py-4">
-                                    <i class="fas fa-envelope fa-3x text-muted mb-3"></i>
-                                    <p>Aucun message trouvé</p>
+                                    <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                                    <p>Aucune prédiction trouvée</p>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -723,12 +737,12 @@
                 </div>
 
                 <!-- Pagination -->
-                {% if messages_list.has_other_pages %}
+                {% if predictions_list.has_other_pages %}
                 <nav aria-label="Page navigation">
                     <ul class="pagination">
-                        {% if messages_list.has_previous %}
+                        {% if predictions_list.has_previous %}
                         <li class="page-item">
-                            <a class="page-link" href="?page={{ messages_list.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" aria-label="Previous">
+                            <a class="page-link" href="?page={{ predictions_list.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" aria-label="Previous">
                                 <span aria-hidden="true">&laquo;</span>
                             </a>
                         </li>
@@ -740,17 +754,17 @@
                         </li>
                         {% endif %}
                         
-                        {% for i in messages_list.paginator.page_range %}
-                            {% if messages_list.number == i %}
+                        {% for i in predictions_list.paginator.page_range %}
+                            {% if predictions_list.number == i %}
                             <li class="page-item active"><a class="page-link" href="#">{{ i }}</a></li>
                             {% else %}
                             <li class="page-item"><a class="page-link" href="?page={{ i }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ i }}</a></li>
                             {% endif %}
                         {% endfor %}
                         
-                        {% if messages_list.has_next %}
+                        {% if predictions_list.has_next %}
                         <li class="page-item">
-                            <a class="page-link" href="?page={{ messages_list.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" aria-label="Next">
+                            <a class="page-link" href="?page={{ predictions_list.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}" aria-label="Next">
                                 <span aria-hidden="true">&raquo;</span>
                             </a>
                         </li>
@@ -768,81 +782,71 @@
         </div>
     </div>
 
-    <!-- Modal Voir Message -->
-    <div class="modal fade" id="viewMessageModal" tabindex="-1" aria-hidden="true">
+    <!-- Modal Voir Prédiction -->
+    <div class="modal fade" id="viewPredictionModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Détails du message</h5>
+                    <h5 class="modal-title">Détails de la prédiction</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <strong>De:</strong> <span id="messageFrom"></span>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <strong>Utilisateur:</strong> <span id="predictionUser"></span>
+                            </div>
+                            <div class="mb-3">
+                                <strong>Type de campagne:</strong> <span id="predictionCampaignType"></span>
+                            </div>
+                            <div class="mb-3">
+                                <strong>Canal utilisé:</strong> <span id="predictionChannel"></span>
+                            </div>
+                            <div class="mb-3">
+                                <strong>Date:</strong> <span id="predictionDate"></span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <strong>Taux de conversion:</strong> <span id="predictionConversionRate"></span>%
+                            </div>
+                            <div class="mb-3">
+                                <strong>Coût d'acquisition:</strong> <span id="predictionAcquisitionCost"></span>€
+                            </div>
+                            <div class="mb-3">
+                                <strong>Score d'engagement:</strong> <span id="predictionEngagementScore"></span>
+                            </div>
+                            <div class="mb-3">
+                                <strong>CTR:</strong> <span id="predictionCTR"></span>%
+                            </div>
+                            <div class="mb-3">
+                                <strong>CPC:</strong> <span id="predictionCPC"></span>€
+                            </div>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <strong>Email:</strong> <span id="messageEmail"></span>
+                    <hr>
+                    <div class="text-center">
+                        <h4>ROI Prédit</h4>
+                        <h2 class="text-primary" id="predictionROI"></h2>
+                        <span class="roi-badge" id="predictionROICategory"></span>
                     </div>
-                    <div class="mb-3">
-                        <strong>Sujet:</strong> <span id="messageSubject"></span>
-                    </div>
-                    <div class="mb-3">
-                        <strong>Date:</strong> <span id="messageDate"></span>
-                    </div>
-                    <div class="mb-3">
-                        <strong>Message:</strong>
-                        <div class="p-3 bg-light rounded" id="messageContent"></div>
-                    </div>
-                    <div id="responseSection" class="d-none">
+                    <div id="predictionNotes" class="mt-3 d-none">
                         <hr>
                         <div class="mb-3">
-                            <strong>Réponse:</strong>
-                            <div class="p-3 bg-light rounded" id="responseContent"></div>
-                        </div>
-                        <div class="mb-3">
-                            <strong>Répondu le:</strong> <span id="responseDate"></span>
-                        </div>
-                        <div class="mb-3">
-                            <strong>Répondu par:</strong> <span id="responseBy"></span>
+                            <strong>Notes:</strong>
+                            <div class="p-3 bg-light rounded" id="predictionNotesContent"></div>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                    <button type="button" class="btn btn-success" id="respondBtn">Répondre</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Modal Répondre au Message -->
-    <div class="modal fade" id="respondMessageModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Répondre au message</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="responseForm" method="post" action="{% url 'admin_message_respond' 0 %}">
-                        {% csrf_token %}
-                        <input type="hidden" name="message_id" id="responseMessageId">
-                        <div class="mb-3">
-                            <label for="responseText" class="form-label">Votre réponse</label>
-                            <textarea class="form-control" id="responseText" name="response" rows="6" required></textarea>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                    <button type="submit" form="responseForm" class="btn btn-success">Envoyer la réponse</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal Supprimer Message -->
-    <div class="modal fade" id="deleteMessageModal" tabindex="-1" aria-hidden="true">
+    <!-- Modal Supprimer Prédiction -->
+    <div class="modal fade" id="deletePredictionModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -850,14 +854,14 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p>Êtes-vous sûr de vouloir supprimer ce message ?</p>
+                    <p>Êtes-vous sûr de vouloir supprimer cette prédiction ?</p>
                     <p class="text-danger">Cette action est irréversible.</p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                    <form id="deleteMessageForm" method="post" action="{% url 'admin_message_delete' 0 %}">
+                    <form id="deletePredictionForm" method="post" action="{% url 'admin_predictions' %}">
                         {% csrf_token %}
-                        <input type="hidden" name="message_id" id="deleteMessageId">
+                        <input type="hidden" name="prediction_id" id="deletePredictionId">
                         <button type="submit" class="btn btn-danger">Supprimer</button>
                     </form>
                 </div>
@@ -869,129 +873,102 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Gestion des messages
-            const viewMessageBtns = document.querySelectorAll('.view-message');
-            const respondMessageBtns = document.querySelectorAll('.respond-message');
-            const deleteMessageBtns = document.querySelectorAll('.delete-message');
-            const viewMessageModal = new bootstrap.Modal(document.getElementById('viewMessageModal'));
-            const respondMessageModal = new bootstrap.Modal(document.getElementById('respondMessageModal'));
-            const deleteMessageModal = new bootstrap.Modal(document.getElementById('deleteMessageModal'));
+            // Gestion des prédictions
+            const viewPredictionBtns = document.querySelectorAll('.view-prediction');
+            const deletePredictionBtns = document.querySelectorAll('.delete-prediction');
+            const viewPredictionModal = new bootstrap.Modal(document.getElementById('viewPredictionModal'));
+            const deletePredictionModal = new bootstrap.Modal(document.getElementById('deletePredictionModal'));
             
-            viewMessageBtns.forEach(btn => {
+            viewPredictionBtns.forEach(btn => {
                 btn.addEventListener('click', function() {
-                    const messageId = this.getAttribute('data-id');
+                    const predictionId = this.getAttribute('data-id');
                     
-                    // Charger les détails du message via AJAX
-                    fetch(`/admin/api/message/${messageId}/`)
+                    // Charger les détails de la prédiction via AJAX
+                    fetch(`/admin/api/prediction/${predictionId}/`)
                         .then(response => response.json())
                         .then(data => {
-                            document.getElementById('messageFrom').textContent = data.name;
-                            document.getElementById('messageEmail').textContent = data.email;
-                            document.getElementById('messageSubject').textContent = data.subject || '(Sans sujet)';
-                            document.getElementById('messageDate').textContent = data.created_at;
-                            document.getElementById('messageContent').textContent = data.message;
+                            document.getElementById('predictionUser').textContent = data.user;
+                            document.getElementById('predictionCampaignType').textContent = data.campaign_type;
+                            document.getElementById('predictionChannel').textContent = data.channel_used;
+                            document.getElementById('predictionDate').textContent = data.created_at;
+                            document.getElementById('predictionConversionRate').textContent = data.conversion_rate;
+                            document.getElementById('predictionAcquisitionCost').textContent = data.acquisition_cost;
+                            document.getElementById('predictionEngagementScore').textContent = data.engagement_score;
+                            document.getElementById('predictionCTR').textContent = data.ctr;
+                            document.getElementById('predictionCPC').textContent = data.cpc;
+                            document.getElementById('predictionROI').textContent = data.predicted_roi;
                             
-                            // Configurer le bouton de réponse
-                            const respondBtn = document.getElementById('respondBtn');
-                            respondBtn.setAttribute('data-id', messageId);
+                            // Catégorie ROI
+                            const roiCategory = document.getElementById('predictionROICategory');
+                            roiCategory.textContent = data.roi_category;
+                            roiCategory.className = `roi-badge roi-${data.roi_category.toLowerCase()}`;
                             
-                            // Afficher la réponse si elle existe
-                            const responseSection = document.getElementById('responseSection');
-                            if (data.response) {
-                                document.getElementById('responseContent').textContent = data.response;
-                                document.getElementById('responseDate').textContent = data.responded_at;
-                                document.getElementById('responseBy').textContent = data.responded_by || 'Administrateur';
-                                responseSection.classList.remove('d-none');
-                                respondBtn.classList.add('d-none');
+                            // Notes
+                            const notesSection = document.getElementById('predictionNotes');
+                            if (data.notes) {
+                                document.getElementById('predictionNotesContent').textContent = data.notes;
+                                notesSection.classList.remove('d-none');
                             } else {
-                                responseSection.classList.add('d-none');
-                                respondBtn.classList.remove('d-none');
+                                notesSection.classList.add('d-none');
                             }
                             
-                            viewMessageModal.show();
+                            viewPredictionModal.show();
                         });
                 });
             });
             
-            // Bouton pour ouvrir le modal de réponse
-            document.getElementById('respondBtn').addEventListener('click', function() {
-                const messageId = this.getAttribute('data-id');
-                document.getElementById('responseMessageId').value = messageId;
-                
-                // Mettre à jour l'action du formulaire
-                const form = document.getElementById('responseForm');
-                form.action = form.action.replace(/\/0\/$/, `/${messageId}/`);
-                
-                viewMessageModal.hide();
-                respondMessageModal.show();
-            });
-            
-            respondMessageBtns.forEach(btn => {
+            deletePredictionBtns.forEach(btn => {
                 btn.addEventListener('click', function() {
-                    const messageId = this.getAttribute('data-id');
-                    document.getElementById('responseMessageId').value = messageId;
+                    const predictionId = this.getAttribute('data-id');
+                    document.getElementById('deletePredictionId').value = predictionId;
                     
                     // Mettre à jour l'action du formulaire
-                    const form = document.getElementById('responseForm');
-                    form.action = form.action.replace(/\/0\/$/, `/${messageId}/`);
+                    const form = document.getElementById('deletePredictionForm');
+                    form.action = form.action.replace(/\/0\/$/, `/${predictionId}/`);
                     
-                    respondMessageModal.show();
+                    deletePredictionModal.show();
                 });
             });
             
-            deleteMessageBtns.forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const messageId = this.getAttribute('data-id');
-                    document.getElementById('deleteMessageId').value = messageId;
-                    
-                    // Mettre à jour l'action du formulaire
-                    const form = document.getElementById('deleteMessageForm');
-                    form.action = form.action.replace(/\/0\/$/, `/${messageId}/`);
-                    
-                    deleteMessageModal.show();
-                });
-            });
+            // Gestion des cases à cocher pour les prédictions
+            const selectAllPredictions = document.getElementById('selectAllPredictions');
+            const predictionCheckboxes = document.querySelectorAll('.prediction-checkbox');
+            const deleteSelectedPredictionsBtn = document.getElementById('deleteSelectedPredictions');
             
-            // Gestion des cases à cocher pour les messages
-            const selectAllMessages = document.getElementById('selectAllMessages');
-            const messageCheckboxes = document.querySelectorAll('.message-checkbox');
-            const deleteSelectedMessagesBtn = document.getElementById('deleteSelectedMessages');
-            
-            if (selectAllMessages) {
-                selectAllMessages.addEventListener('change', function() {
+            if (selectAllPredictions) {
+                selectAllPredictions.addEventListener('change', function() {
                     const isChecked = this.checked;
-                    messageCheckboxes.forEach(checkbox => {
+                    predictionCheckboxes.forEach(checkbox => {
                         checkbox.checked = isChecked;
                     });
                     updateDeleteButtonState();
                 });
             }
             
-            messageCheckboxes.forEach(checkbox => {
+            predictionCheckboxes.forEach(checkbox => {
                 checkbox.addEventListener('change', updateDeleteButtonState);
             });
             
             function updateDeleteButtonState() {
-                const checkedCount = document.querySelectorAll('.message-checkbox:checked').length;
-                deleteSelectedMessagesBtn.disabled = checkedCount === 0;
+                const checkedCount = document.querySelectorAll('.prediction-checkbox:checked').length;
+                deleteSelectedPredictionsBtn.disabled = checkedCount === 0;
             }
             
-            // Suppression groupée des messages
-            if (deleteSelectedMessagesBtn) {
-                deleteSelectedMessagesBtn.addEventListener('click', function() {
-                    
-                    if (confirm('Êtes-vous sûr de vouloir supprimer les messages sélectionnés ?')) {
-                        const selectedIds = Array.from(document.querySelectorAll('.message-checkbox:checked'))
+            // Suppression groupée des prédictions
+            if (deleteSelectedPredictionsBtn) {
+                deleteSelectedPredictionsBtn.addEventListener('click', function() {
+                    if (confirm('Êtes-vous sûr de vouloir supprimer les prédictions sélectionnées ?')) {
+                        const selectedIds = Array.from(document.querySelectorAll('.prediction-checkbox:checked'))
                             .map(checkbox => checkbox.getAttribute('data-id'));
                         
                         // Envoyer la requête de suppression
-                        fetch('/admin/messages/delete-multiple/', {
+                        fetch('/admin/predictions/delete-multiple/', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                                 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
                             },
-                            body: JSON.stringify({ message_ids: selectedIds })
+                            body: JSON.stringify({ prediction_ids: selectedIds })
                         })
                         .then(response => response.json())
                         .then(data => {
@@ -999,7 +976,7 @@
                                 // Recharger la page pour voir les changements
                                 window.location.reload();
                             } else {
-                                alert('Erreur lors de la suppression des messages.');
+                                alert('Erreur lors de la suppression des prédictions.');
                             }
                         });
                     }
@@ -1010,7 +987,7 @@
             const resetFiltersBtn = document.getElementById('resetFilters');
             if (resetFiltersBtn) {
                 resetFiltersBtn.addEventListener('click', function() {
-                    window.location.href = "{% url 'admin_messages' %}";
+                    window.location.href = "{% url 'admin_predictions' %}";
                 });
             }
         });

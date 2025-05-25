@@ -7,7 +7,10 @@ from sklearn.exceptions import InconsistentVersionWarning
 from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestRegressor
 import joblib
+import math
 import os
+import csv
+from django.db.models import Avg, Max, Min, Count
 import numpy as np
 from django.shortcuts import get_object_or_404, render, redirect
 from .forms import LoginForm, RegisterForm, ProfileForm, PredictionForm
@@ -47,18 +50,17 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.offline as opy
 import os
+from .models import Prediction
 
-def dashboard_view(request):
-    # Récupération des données
-    # Option 1: Depuis un fichier CSV
+@login_required
+def enhanced_dashboard_view(request):
+    """Vue du dashboard enrichi avec l'historique des prédictions utilisateur"""
+    
+    # Récupération des données générales (comme dans votre dashboard original)
     csv_path = os.path.join(os.path.dirname(__file__), 'data', 'data_to_use.csv')
     df = pd.read_csv(csv_path)
     
-    # Option 2: Depuis la base de données (décommentez si vous préférez utiliser les données de la BD)
-    # queryset = MarketingData.objects.all()
-    # df = pd.DataFrame.from_records(queryset.values())
-    
-    # Préparation des KPIs
+    # Préparation des KPIs généraux
     kpis = {
         'total_campaigns': len(df),
         'avg_roi': round(df['ROI'].mean(), 2),
@@ -68,7 +70,45 @@ def dashboard_view(request):
         'avg_cpc': round(df['CPC'].mean(), 2),
     }
     
-    # Préparation des données pour les graphiques
+    # Génération des graphiques (comme dans votre dashboard original)
+    plots = generate_dashboard_plots(df)
+    
+    # Récupération des données utilisateur pour l'historique
+    user_predictions = Prediction.objects.filter(user=request.user).order_by('-created_at')
+    
+    # Calcul des statistiques utilisateur
+    user_stats = {}
+    user_strategy_analysis = {}
+    user_predictions_with_comparison = []
+    user_personalized_recommendations = []
+    
+    if user_predictions.exists():
+        user_stats = calculate_user_stats(user_predictions)
+        user_strategy_analysis = analyze_user_strategy(user_predictions)
+        user_predictions_with_comparison = prepare_predictions_comparison(user_predictions)
+        user_personalized_recommendations = generate_personalized_recommendations(user_predictions, user_strategy_analysis)
+    
+    # Préparation du tableau HTML
+    table_html = df.head(10).to_html(classes='table table-striped table-hover', index=False)
+    
+    # Contexte pour le template
+    context = {
+        'kpis': kpis,
+        'plots': plots,
+        'table_html': table_html,
+        'summary': df.describe().to_html(classes='table table-striped table-sm'),
+        # Données utilisateur
+        'user_stats': user_stats,
+        'user_strategy_analysis': user_strategy_analysis,
+        'user_predictions_with_comparison': user_predictions_with_comparison,
+        'user_personalized_recommendations': user_personalized_recommendations,
+    }
+    
+    return render(request, 'dashboard_enhanced.html', context)
+
+def generate_dashboard_plots(df):
+    """Génère tous les graphiques du dashboard (repris de votre code original)"""
+    
     # 1. Distribution du ROI
     roi_hist = px.histogram(
         df, 
@@ -184,7 +224,6 @@ def dashboard_view(request):
     )
     
     # 7. Radar chart pour comparer les canaux
-    # Préparation des données pour le radar chart
     radar_df = df.groupby('Channel_Used')[['ROI', 'Conversion_Rate', 'Engagement_Score', 'CTR']].mean()
     radar_df = radar_df.reset_index()
     
@@ -260,18 +299,374 @@ def dashboard_view(request):
         'table': opy.plot(table_fig, auto_open=False, output_type='div'),
     }
     
-    # Préparation des données pour le tableau
-    table_html = df.head(10).to_html(classes='table table-striped table-hover', index=False)
+    return plots
+
+def calculate_user_stats(predictions):
+    """Calcule les statistiques de l'utilisateur - VERSION CORRIGÉE"""
+    total_predictions = predictions.count()
     
-    # Contexte pour le template
-    context = {
-        'kpis': kpis,
-        'plots': plots,
-        'table_html': table_html,
-        'summary': df.describe().to_html(classes='table table-striped table-sm'),
+    if total_predictions == 0:
+        return {}
+    
+    # ROI moyen
+    avg_roi = predictions.aggregate(Avg('predicted_roi'))['predicted_roi__avg']
+    avg_roi = round(avg_roi, 2) if avg_roi else 0
+    
+    # Meilleur ROI
+    best_prediction = predictions.order_by('-predicted_roi').first()
+    best_roi = best_prediction.predicted_roi if best_prediction else 0
+    best_roi_date = best_prediction.created_at if best_prediction else None
+    
+    # Première prédiction
+    first_prediction = predictions.order_by('created_at').first()
+    first_prediction_date = first_prediction.created_at if first_prediction else None
+    
+    # CORRECTION: Convertir QuerySet en liste pour éviter l'erreur d'indexation négative
+    predictions_list = list(predictions)
+    
+    # Calculer la tendance (comparaison des 3 dernières vs 3 précédentes)
+    recent_predictions = predictions_list[:3] if len(predictions_list) >= 3 else predictions_list
+    older_predictions = predictions_list[3:6] if len(predictions_list) > 6 else predictions_list[3:] if len(predictions_list) > 3 else []
+    
+    trend_percentage = 0
+    trend_class = 'neutral'
+    trend_text = 'Stable'
+    trend_arrow = 'right'
+    trend_icon = 'minus'
+    trend_icon_class = 'info'
+    
+    if recent_predictions and older_predictions:
+        recent_avg = sum(p.predicted_roi for p in recent_predictions) / len(recent_predictions)
+        older_avg = sum(p.predicted_roi for p in older_predictions) / len(older_predictions)
+        
+        if older_avg > 0:
+            trend_percentage = round(((recent_avg - older_avg) / older_avg) * 100, 1)
+            
+            if trend_percentage > 5:
+                trend_class = 'positive'
+                trend_text = 'En amélioration'
+                trend_arrow = 'up'
+                trend_icon = 'trending-up'
+                trend_icon_class = 'success'
+            elif trend_percentage < -5:
+                trend_class = 'negative'
+                trend_text = 'En déclin'
+                trend_arrow = 'down'
+                trend_icon = 'trending-down'
+                trend_icon_class = 'warning'
+    
+    # Changement du ROI moyen par rapport à la moyenne précédente
+    avg_roi_change = 0
+    avg_roi_change_class = 'neutral'
+    avg_roi_arrow = 'right'
+    avg_roi_trend = 'info'
+    
+    if total_predictions > 1:
+        latest_prediction = predictions.first()
+        previous_avg = predictions.exclude(id=latest_prediction.id).aggregate(Avg('predicted_roi'))['predicted_roi__avg']
+        
+        if previous_avg and previous_avg > 0:
+            avg_roi_change = round(((latest_prediction.predicted_roi - previous_avg) / previous_avg) * 100, 1)
+            
+            if avg_roi_change > 0:
+                avg_roi_change_class = 'positive'
+                avg_roi_arrow = 'up'
+                avg_roi_trend = 'success'
+            elif avg_roi_change < 0:
+                avg_roi_change_class = 'negative'
+                avg_roi_arrow = 'down'
+                avg_roi_trend = 'warning'
+    
+    return {
+        'total_predictions': total_predictions,
+        'avg_roi': avg_roi,
+        'best_roi': best_roi,
+        'best_roi_date': best_roi_date,
+        'first_prediction_date': first_prediction_date,
+        'trend_percentage': abs(trend_percentage),
+        'trend_class': trend_class,
+        'trend_text': trend_text,
+        'trend_arrow': trend_arrow,
+        'trend_icon': trend_icon,
+        'trend_icon_class': trend_icon_class,
+        'avg_roi_change': abs(avg_roi_change),
+        'avg_roi_change_class': avg_roi_change_class,
+        'avg_roi_arrow': avg_roi_arrow,
+        'avg_roi_trend': avg_roi_trend
     }
+
+def analyze_user_strategy(predictions):
+    """Analyse la stratégie de l'utilisateur - VERSION CORRIGÉE"""
+    total_predictions = predictions.count()
     
-    return render(request, 'dashboard.html', context)
+    if total_predictions == 0:
+        return {}
+    
+    # Performance globale
+    avg_roi = predictions.aggregate(Avg('predicted_roi'))['predicted_roi__avg'] or 0
+    
+    if avg_roi >= 4:
+        overall_performance = {
+            'class': 'excellent',
+            'label': 'Excellente Performance',
+            'icon': 'star',
+            'message': 'Vos stratégies marketing sont exceptionnelles ! Vous maintenez un ROI élevé de manière constante. Continuez sur cette voie et documentez vos meilleures pratiques.'
+        }
+    elif avg_roi >= 2.5:
+        overall_performance = {
+            'class': 'good',
+            'label': 'Bonne Performance',
+            'icon': 'thumbs-up',
+            'message': 'Vos stratégies sont solides avec un ROI satisfaisant. Il y a encore de la marge pour optimiser certains aspects de vos campagnes.'
+        }
+    elif avg_roi >= 1:
+        overall_performance = {
+            'class': 'average',
+            'label': 'Performance Moyenne',
+            'icon': 'chart-line',
+            'message': 'Vos résultats sont corrects mais peuvent être améliorés. Analysez vos campagnes les plus performantes pour identifier les facteurs de succès.'
+        }
+    else:
+        overall_performance = {
+            'class': 'poor',
+            'label': 'Performance à Améliorer',
+            'icon': 'exclamation-triangle',
+            'message': 'Vos stratégies actuelles nécessitent une révision. Concentrez-vous sur l\'optimisation de vos canaux les plus prometteurs.'
+        }
+    
+    # CORRECTION: Convertir en liste pour les calculs mathématiques
+    predictions_list = list(predictions)
+    roi_values = [p.predicted_roi for p in predictions_list]
+    
+    # Consistance
+    roi_std = math.sqrt(sum((x - avg_roi) ** 2 for x in roi_values) / len(roi_values)) if len(roi_values) > 1 else 0
+    
+    if roi_std < 0.5:
+        consistency = {
+            'class': 'excellent',
+            'label': 'Très Consistant',
+            'icon': 'check-circle',
+            'message': 'Vos performances sont remarquablement stables. Cette consistance témoigne d\'une maîtrise de vos stratégies marketing.'
+        }
+    elif roi_std < 1:
+        consistency = {
+            'class': 'good',
+            'label': 'Consistant',
+            'icon': 'check',
+            'message': 'Vos résultats montrent une bonne stabilité avec quelques variations normales. Maintenez cette régularité.'
+        }
+    elif roi_std < 2:
+        consistency = {
+            'class': 'average',
+            'label': 'Modérément Variable',
+            'icon': 'wave-square',
+            'message': 'Vos performances varient modérément. Identifiez les facteurs qui causent ces variations pour les stabiliser.'
+        }
+    else:
+        consistency = {
+            'class': 'poor',
+            'label': 'Très Variable',
+            'icon': 'exclamation',
+            'message': 'Vos résultats sont très irréguliers. Focalisez-vous sur les stratégies qui ont donné les meilleurs résultats.'
+        }
+    
+    # CORRECTION: Amélioration avec gestion sécurisée des listes
+    if total_predictions >= 3:
+        # Prendre les 2 premières (plus récentes) et les 2 dernières (plus anciennes)
+        recent_predictions = predictions_list[:2]
+        older_predictions = predictions_list[-2:] if len(predictions_list) >= 4 else predictions_list[2:]
+        
+        if recent_predictions and older_predictions:
+            recent_avg = sum(p.predicted_roi for p in recent_predictions) / len(recent_predictions)
+            older_avg = sum(p.predicted_roi for p in older_predictions) / len(older_predictions)
+            improvement_rate = ((recent_avg - older_avg) / older_avg * 100) if older_avg > 0 else 0
+            
+            if improvement_rate > 10:
+                improvement = {
+                    'class': 'excellent',
+                    'label': 'Forte Amélioration',
+                    'icon': 'rocket',
+                    'message': f'Excellente progression ! Vos dernières stratégies montrent une amélioration de {improvement_rate:.1f}%. Vous êtes sur la bonne voie.'
+                }
+            elif improvement_rate > 0:
+                improvement = {
+                    'class': 'good',
+                    'label': 'En Amélioration',
+                    'icon': 'arrow-up',
+                    'message': f'Vous progressez avec une amélioration de {improvement_rate:.1f}%. Continuez à optimiser vos approches.'
+                }
+            elif improvement_rate > -10:
+                improvement = {
+                    'class': 'average',
+                    'label': 'Stable',
+                    'icon': 'minus',
+                    'message': 'Vos performances restent stables. Explorez de nouvelles approches pour relancer la croissance.'
+                }
+            else:
+                improvement = {
+                    'class': 'poor',
+                    'label': 'En Déclin',
+                    'icon': 'arrow-down',
+                    'message': f'Attention, vos performances déclinent de {abs(improvement_rate):.1f}%. Révisez votre stratégie rapidement.'
+                }
+        else:
+            improvement = {
+                'class': 'average',
+                'label': 'Données Insuffisantes',
+                'icon': 'clock',
+                'message': 'Effectuez plus de prédictions pour analyser votre progression dans le temps.'
+            }
+    else:
+        improvement = {
+            'class': 'average',
+            'label': 'Données Insuffisantes',
+            'icon': 'clock',
+            'message': 'Effectuez plus de prédictions pour analyser votre progression dans le temps.'
+        }
+    
+    return {
+        'overall_performance': overall_performance,
+        'consistency': consistency,
+        'improvement': improvement
+    }
+
+def prepare_predictions_comparison(predictions):
+    """Prépare les prédictions avec comparaison par rapport à la précédente"""
+    predictions_list = list(predictions)
+    predictions_with_comparison = []
+    
+    for i, prediction in enumerate(predictions_list):
+        # Déterminer la classe ROI
+        if prediction.predicted_roi >= 4:
+            roi_class = 'roi-excellent'
+        elif prediction.predicted_roi >= 2.5:
+            roi_class = 'roi-good'
+        elif prediction.predicted_roi >= 1:
+            roi_class = 'roi-average'
+        else:
+            roi_class = 'roi-poor'
+        
+        # Comparaison avec la prédiction précédente
+        roi_change = None
+        comparison_message = ""
+        dot_class = "latest" if i == 0 else ""
+        
+        if i < len(predictions_list) - 1:
+            previous_prediction = predictions_list[i + 1]
+            change_percentage = ((prediction.predicted_roi - previous_prediction.predicted_roi) / previous_prediction.predicted_roi) * 100
+            
+            if change_percentage > 5:
+                roi_change = {
+                    'class': 'positive',
+                    'direction': 'up',
+                    'percentage': f'+{change_percentage:.1f}'
+                }
+                dot_class = "improved"
+                comparison_message = f"Excellente amélioration ! Votre ROI a progressé de {change_percentage:.1f}% par rapport à votre prédiction précédente. Vos ajustements stratégiques portent leurs fruits."
+            elif change_percentage < -5:
+                roi_change = {
+                    'class': 'negative',
+                    'direction': 'down',
+                    'percentage': f'{change_percentage:.1f}'
+                }
+                dot_class = "declined"
+                comparison_message = f"Attention, votre ROI a diminué de {abs(change_percentage):.1f}%. Analysez les changements récents dans votre stratégie pour identifier les causes."
+            else:
+                roi_change = {
+                    'class': 'neutral',
+                    'direction': 'right',
+                    'percentage': f'{change_percentage:+.1f}'
+                }
+                comparison_message = "Performance stable par rapport à votre prédiction précédente. Considérez de nouveaux leviers d'optimisation."
+        else:
+            comparison_message = "Première prédiction de votre historique. Continuez à utiliser l'outil pour suivre votre progression !"
+        
+        prediction.roi_class = roi_class
+        prediction.roi_change = roi_change
+        prediction.comparison_message = comparison_message
+        prediction.dot_class = dot_class
+        
+        predictions_with_comparison.append(prediction)
+    
+    return predictions_with_comparison
+
+def generate_personalized_recommendations(predictions, strategy_analysis):
+    """Génère des recommandations personnalisées basées sur l'historique"""
+    recommendations = []
+    
+    if not predictions:
+        return recommendations
+    
+    # Convertir en liste pour éviter les problèmes d'indexation
+    predictions_list = list(predictions)
+    
+    # Analyse des canaux les plus utilisés
+    channel_usage = {}
+    campaign_usage = {}
+    
+    for prediction in predictions_list:
+        channel_usage[prediction.channel_used] = channel_usage.get(prediction.channel_used, 0) + 1
+        campaign_usage[prediction.campaign_type] = campaign_usage.get(prediction.campaign_type, 0) + 1
+    
+    # Recommandations basées sur la performance globale
+    avg_roi = predictions.aggregate(Avg('predicted_roi'))['predicted_roi__avg'] or 0
+    
+    if avg_roi < 2:
+        recommendations.append({
+            'icon': 'exclamation-triangle',
+            'text': 'Votre ROI moyen est en dessous de 2. Concentrez-vous sur l\'optimisation de vos coûts d\'acquisition et l\'amélioration de vos taux de conversion.'
+        })
+    
+    # Recommandations basées sur la diversification
+    if len(channel_usage) < 3:
+        recommendations.append({
+            'icon': 'expand-arrows-alt',
+            'text': 'Diversifiez vos canaux marketing ! Vous utilisez principalement un ou deux canaux. Testez de nouveaux canaux pour réduire les risques et découvrir de nouvelles opportunités.'
+        })
+    
+    # Recommandations basées sur la consistance
+    if strategy_analysis.get('consistency', {}).get('class') == 'poor':
+        recommendations.append({
+            'icon': 'balance-scale',
+            'text': 'Vos performances sont très variables. Documentez vos campagnes les plus réussies et créez des processus reproductibles pour stabiliser vos résultats.'
+        })
+    
+    # Recommandations basées sur les tendances
+    recent_predictions = predictions_list[:3]
+    if len(recent_predictions) >= 2:
+        recent_avg = sum(p.predicted_roi for p in recent_predictions) / len(recent_predictions)
+        if recent_avg > avg_roi:
+            recommendations.append({
+                'icon': 'rocket',
+                'text': 'Vos performances récentes sont excellentes ! Analysez ce qui a changé dans votre approche et appliquez ces bonnes pratiques à toutes vos campagnes.'
+            })
+    
+    # Recommandations basées sur les canaux préférés
+    most_used_channel = max(channel_usage.items(), key=lambda x: x[1])[0] if channel_usage else None
+    if most_used_channel:
+        channel_predictions = [p for p in predictions_list if p.channel_used == most_used_channel]
+        channel_avg_roi = sum(p.predicted_roi for p in channel_predictions) / len(channel_predictions)
+        
+        if channel_avg_roi < avg_roi:
+            recommendations.append({
+                'icon': 'search',
+                'text': f'Votre canal principal ({most_used_channel}) sous-performe par rapport à votre moyenne. Explorez d\'autres canaux ou optimisez votre approche sur ce canal.'
+            })
+    
+    # Recommandation générale si peu de prédictions
+    if predictions.count() < 5:
+        recommendations.append({
+            'icon': 'chart-line',
+            'text': 'Effectuez plus de prédictions pour obtenir des analyses plus précises et des recommandations personnalisées basées sur vos tendances à long terme.'
+        })
+    
+    # Recommandation d'optimisation continue
+    recommendations.append({
+        'icon': 'cogs',
+        'text': 'Testez régulièrement de nouvelles combinaisons de paramètres. L\'optimisation continue est la clé d\'une stratégie marketing performante.'
+    })
+    
+    return recommendations[:5]  # Limiter à 5 recommandations
 
 # Ignorer les avertissements spécifiques de version scikit-learn
 warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
@@ -358,7 +753,6 @@ def register(request):
         form = RegisterForm()
     return render(request, 'register.html', {'form': form})
 
-# Vue pour la page de prédiction
 @login_required
 def predict(request):
     prediction = None
@@ -370,16 +764,21 @@ def predict(request):
             data = form.cleaned_data
 
             try:
-                # Encodage des variables catégorielles
                 if data['Campaign_Type'] not in encoder_campaign.classes_:
-                    error_message = f"Type de campagne inconnu : {data['Campaign_Type']}. Valeurs possibles : {', '.join(encoder_campaign.classes_)}"
+                    error_message = (
+                        f"Type de campagne inconnu : {data['Campaign_Type']}. "
+                        f"Valeurs possibles : {', '.join(encoder_campaign.classes_)}"
+                    )
                 elif data['Channel_Used'] not in encoder_channel.classes_:
-                    error_message = f"Canal inconnu : {data['Channel_Used']}. Valeurs possibles : {', '.join(encoder_channel.classes_)}"
+                    error_message = (
+                        f"Canal inconnu : {data['Channel_Used']}. "
+                        f"Valeurs possibles : {', '.join(encoder_channel.classes_)}"
+                    )
                 else:
+                    # Encodage
                     encoded_campaign = encoder_campaign.transform([data['Campaign_Type']])[0]
                     encoded_channel = encoder_channel.transform([data['Channel_Used']])[0]
 
-                    # Données numériques
                     numeric_data = [
                         data['Conversion_Rate'],
                         data['Acquisition_Cost'],
@@ -388,24 +787,86 @@ def predict(request):
                         data['CPC']
                     ]
 
-                    # Fusion des données
                     final_input = np.array([[encoded_campaign, encoded_channel, *numeric_data]])
+                    raw_pred = model.predict(final_input)[0]
+                    prediction = round(raw_pred, 2)
 
-                    # Prédiction
-                    prediction = model.predict(final_input)[0]
-                    prediction = round(prediction, 2)
+                    # Base de données
+                    Prediction.objects.create(
+                        user=request.user,
+                        campaign_type=data['Campaign_Type'],
+                        channel_used=data['Channel_Used'],
+                        conversion_rate=data['Conversion_Rate'],
+                        acquisition_cost=data['Acquisition_Cost'],
+                        engagement_score=data['Engagement_Score'],
+                        ctr=data['CTR'],
+                        cpc=data['CPC'],
+                        predicted_roi=prediction
+                    )
+
                     log_activity(
-                           user=request.user,
-                           title="prédiction",
-                           description=f"A fait une prédiction",
-                           activity_type='success'
-        ) 
-                    # Dans votre fonction predict, après avoir calculé la prédiction
+                        user=request.user,
+                        title="prédiction",
+                        description="A effectué une prédiction",
+                        activity_type='success'
+                    )
+
+                    # === CSV ===
+                   
+
+                    csv_path = os.path.join(settings.BASE_DIR,'analyzer', 'data', 'data_to_use.csv')  
+                    print("📁 Chemin absolu CSV utilisé :", csv_path)
+                    file_exists = os.path.isfile(csv_path)
+
+                    # Lire dernier ID
+                    last_id = 0
+                    if file_exists:
+                        with open(csv_path, 'r', newline='', encoding='utf-8') as f:
+                            rows = list(csv.reader(f))
+                            if len(rows) > 1:
+                                try:
+                                    last_id = int(rows[-1][0])
+                                except:
+                                    last_id = 0
+
+                    new_id = last_id + 1
+
+                    row = [
+                        new_id,
+                        data['Campaign_Type'],
+                        data['Channel_Used'],
+                        data['Conversion_Rate'],
+                        data['Acquisition_Cost'],
+                        prediction,
+                        data['Engagement_Score'],
+                        data['CTR'],
+                        data['CPC']
+                    ]
+
+                    with open(csv_path, 'a', newline='', encoding='utf-8') as csvfile:
+                        writer = csv.writer(csvfile)
+                        if not file_exists:
+                            writer.writerow([
+                                'Campaign_ID',
+                                'Campaign_Type',
+                                'Channel_Used',
+                                'Conversion_Rate',
+                                'Acquisition_Cost',
+                                'ROI',
+                                'Engagement_Score',
+                                'CTR',
+                                'CPC'
+                            ])
+                        writer.writerow(row)
+
+                    print("✅ Ajout dans CSV OK")
+
+                    # Pour affichage
                     request.session['prediction'] = prediction
                     request.session['form_data'] = form.cleaned_data
 
             except Exception as e:
-                error_message = f"Erreur lors de la prédiction : {str(e)}"
+                error_message = f"Erreur lors de la prédiction : {e}"
 
     else:
         form = PredictionForm()
@@ -415,9 +876,6 @@ def predict(request):
         'prediction': prediction,
         'error': error_message
     })
-  
-
-
 
 # Vue pour la page de déconnexion
 def logout_view(request):
@@ -1111,3 +1569,170 @@ def chatbot_response(request):
 
 def chatbot_page(request):
     return render(request, 'chatbot.html')
+@login_required
+@staff_member_required
+def admin_predictions(request):
+    """Vue pour gérer les prédictions"""
+    # Filtres
+    campaign_type_filter = request.GET.get('campaign_type', '')
+    channel_used_filter = request.GET.get('channel_used', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    search = request.GET.get('search', '')
+    
+    # Requête de base
+    predictions_query = Prediction.objects.select_related('user').all()
+    
+    # Appliquer les filtres
+    if campaign_type_filter:
+        predictions_query = predictions_query.filter(campaign_type=campaign_type_filter)
+    
+    if channel_used_filter:
+        predictions_query = predictions_query.filter(channel_used=channel_used_filter)
+    
+    if date_from:
+        predictions_query = predictions_query.filter(created_at__date__gte=date_from)
+    
+    if date_to:
+        predictions_query = predictions_query.filter(created_at__date__lte=date_to)
+    
+    if search:
+        predictions_query = predictions_query.filter(
+            Q(user__username__icontains=search) | 
+            Q(user__email__icontains=search) | 
+            Q(user__first_name__icontains=search) | 
+            Q(user__last_name__icontains=search)
+        )
+    
+    # Tri par date de création (plus récent en premier)
+    predictions_query = predictions_query.order_by('-created_at')
+    
+    # Pagination
+    paginator = Paginator(predictions_query, 15)  # 15 prédictions par page
+    page = request.GET.get('page', 1)
+    predictions_list = paginator.get_page(page)
+    
+    # Compteur de nouveaux messages (pour la sidebar)
+    from .models import Message
+    new_messages_count = Message.objects.filter(status='new').count()
+    
+    context = {
+        'predictions_list': predictions_list,
+        'new_messages_count': new_messages_count,
+        'total_predictions': predictions_query.count(),
+    }
+    
+    return render(request, 'admin/admin_predictions.html', context)
+
+@login_required
+@staff_member_required
+def admin_prediction_delete(request, prediction_id):
+    """Vue pour supprimer une prédiction"""
+    prediction = get_object_or_404(Prediction, id=prediction_id)
+    
+    if request.method == 'POST':
+        user_name = prediction.user.username
+        prediction_roi = prediction.predicted_roi
+        prediction.delete()
+        
+        # Enregistrer l'activité
+        log_activity(
+            user=request.user,
+            title="Suppression d'une prédiction",
+            description=f"A supprimé la prédiction de {user_name} (ROI: {prediction_roi})",
+            activity_type='danger'
+        )
+        
+        messages.success(request, "La prédiction a été supprimée avec succès.")
+    
+    return redirect('admin_predictions')
+
+@login_required
+@staff_member_required
+def admin_prediction_delete_multiple(request):
+    """Vue pour supprimer plusieurs prédictions"""
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        prediction_ids = data.get('prediction_ids', [])
+        
+        if prediction_ids:
+            deleted_count = Prediction.objects.filter(id__in=prediction_ids).delete()[0]
+            
+            # Enregistrer l'activité
+            log_activity(
+                user=request.user,
+                title="Suppression multiple de prédictions",
+                description=f"A supprimé {deleted_count} prédictions",
+                activity_type='danger'
+            )
+            
+            return JsonResponse({'success': True, 'count': deleted_count})
+    
+    return JsonResponse({'success': False})
+
+@login_required
+@staff_member_required
+def admin_api_prediction(request, prediction_id):
+    """API pour récupérer les détails d'une prédiction"""
+    prediction = get_object_or_404(Prediction, id=prediction_id)
+    
+    data = {
+        'id': prediction.id,
+        'user': prediction.user.username,
+        'campaign_type': prediction.get_campaign_type_display(),
+        'channel_used': prediction.get_channel_used_display(),
+        'conversion_rate': prediction.conversion_rate,
+        'acquisition_cost': prediction.acquisition_cost,
+        'engagement_score': prediction.engagement_score,
+        'ctr': prediction.ctr,
+        'cpc': prediction.cpc,
+        'predicted_roi': prediction.predicted_roi,
+        'roi_category': prediction.get_roi_category(),
+        'created_at': prediction.created_at.strftime('%d/%m/%Y %H:%M'),
+        'notes': prediction.notes,
+        'is_favorite': prediction.is_favorite
+    }
+    
+    return JsonResponse(data)
+
+@login_required
+@staff_member_required
+def admin_predictions_stats(request):
+    """Vue pour afficher les statistiques des prédictions"""
+    from django.db.models import Avg, Count, Max, Min
+    
+    # Statistiques générales
+    total_predictions = Prediction.objects.count()
+    avg_roi = Prediction.objects.aggregate(Avg('predicted_roi'))['predicted_roi__avg'] or 0
+    max_roi = Prediction.objects.aggregate(Max('predicted_roi'))['predicted_roi__max'] or 0
+    min_roi = Prediction.objects.aggregate(Min('predicted_roi'))['predicted_roi__min'] or 0
+    
+    # Répartition par type de campagne
+    campaign_stats = Prediction.objects.values('campaign_type').annotate(
+        count=Count('id'),
+        avg_roi=Avg('predicted_roi')
+    ).order_by('-count')
+    
+    # Répartition par canal
+    channel_stats = Prediction.objects.values('channel_used').annotate(
+        count=Count('id'),
+        avg_roi=Avg('predicted_roi')
+    ).order_by('-count')
+    
+    # Utilisateurs les plus actifs
+    user_stats = Prediction.objects.values('user__username').annotate(
+        count=Count('id'),
+        avg_roi=Avg('predicted_roi')
+    ).order_by('-count')[:10]
+    
+    context = {
+        'total_predictions': total_predictions,
+        'avg_roi': round(avg_roi, 2),
+        'max_roi': round(max_roi, 2),
+        'min_roi': round(min_roi, 2),
+        'campaign_stats': campaign_stats,
+        'channel_stats': channel_stats,
+        'user_stats': user_stats,
+    }
+    
+    return render(request, 'admin/admin_predictions_stats.html', context)

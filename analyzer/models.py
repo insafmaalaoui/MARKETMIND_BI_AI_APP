@@ -51,3 +51,17 @@ class Activity(models.Model):
         return f"{self.title} - {self.user.username} - {self.timestamp.strftime('%d/%m/%Y %H:%M')}"
     
 
+class Prediction(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    campaign_type = models.CharField(max_length=100)
+    channel_used = models.CharField(max_length=100)
+    conversion_rate = models.FloatField()
+    acquisition_cost = models.FloatField()
+    engagement_score = models.FloatField()
+    ctr = models.FloatField()
+    cpc = models.FloatField()
+    predicted_roi = models.FloatField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Prédiction de {self.user.username} - ROI: {self.predicted_roi}"
