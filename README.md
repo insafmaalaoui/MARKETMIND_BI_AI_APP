@@ -22,19 +22,19 @@ It provides a personalized dashboard where users can input campaign data, analyz
 # 1. Clone the repository
 git clone https://github.com/InsafMaaloui/MarketMind.git
 cd MarketMind
-
+```bash
 # 2. Create and activate a virtual environment
 python -m venv venv
-
+```bash
 # On macOS/Linux
 source venv/bin/activate
-
+```bash
 # On Windows
 venv\Scripts\activate
-
+```bash
 # 3. Install dependencies
 pip install -r requirements.txt
-
+```bash
 # 4. Configure the database (MySQL)
 # Update your settings.py with your MySQL credentials:
 # (Example)
